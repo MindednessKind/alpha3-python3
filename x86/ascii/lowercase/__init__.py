@@ -1,4 +1,4 @@
-import rm32;
+from . import rm32;
 
 encoders = rm32.encoders;
 #encoders.extend(ascii_art.encoders)

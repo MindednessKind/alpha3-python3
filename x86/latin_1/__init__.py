@@ -1,4 +1,4 @@
-import mixedcase
+from . import mixedcase
 
 encoders = mixedcase.encoders
 for encoder in encoders:

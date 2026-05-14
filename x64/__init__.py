@@ -1,4 +1,4 @@
-import ascii;
+from . import ascii;
 
 encoders = ascii.encoders;
 for encoder in encoders:

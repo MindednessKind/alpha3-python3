@@ -1,4 +1,4 @@
-import mixedcase, lowercase, uppercase
+from . import mixedcase, lowercase, uppercase
 
 encoders = mixedcase.encoders + lowercase.encoders + uppercase.encoders
 for encoder in encoders:

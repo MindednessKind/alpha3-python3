@@ -1,9 +1,19 @@
 # Copyright (c) 2003-2010, Berend-Jan "SkyLined" Wever <berendjanwever@gmail.com>
 # Project homepage: http://code.google.com/p/alpha3/
 # All rights reserved. See COPYRIGHT.txt for details.
-import charsets, encode, io
-import x86, x64, test
-import os, re, sys
+import importlib.util, os, re, sys
+
+def _load_local_module(module_name, file_name):
+  file_path = os.path.join(os.path.dirname(__file__), file_name)
+  spec = importlib.util.spec_from_file_location(module_name, file_path)
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  return module
+
+io = _load_local_module("alpha3_io", "io.py")
+
+import charsets, encode
+import x86, x64
 
 #_______________________________________________________________________________________________________________________
 #                                                                                                                       
@@ -49,6 +59,17 @@ encoders = [];
 import print_functions;
 from print_functions import *
 
+def CheckEncodedShellcode(encoded_shellcode, encoder_settings):
+  valid_chars = charsets.valid_chars[encoder_settings["character encoding"]][encoder_settings["case"]]
+  errors = []
+  index = 0
+  for char in encoded_shellcode:
+    if char not in valid_chars:
+      charcode_str = charsets.charcode_fmtstr[encoder_settings["character encoding"]] % ord(char)
+      errors += ["  Byte %d @0x%02X: %s (%s)" % (index, index, char, charcode_str)]
+    index += 1
+  return errors
+
 def ParseCommandLine():
   global _settings, _arguments, _switches, _flags;
   # Parse settings, arguments, switches and flags from the command line:
@@ -67,7 +88,7 @@ def ParseCommandLine():
               _switches[switch_name] = switch_value;
               break;
           else:
-            print >>sys.stderr, "Unknown switch '%s'!" % arg[2:];
+            print("Unknown switch '%s'!" % arg[2:], file=sys.stderr);
             return False;
         else:
           flag_name = arg[2:]
@@ -76,7 +97,7 @@ def ParseCommandLine():
               _flags[flag_name] += 1;
               break
           else:
-            print >>sys.stderr, "Unknown flag '%s'!" % valid_flag_name;
+            print("Unknown flag '%s'!" % flag_name, file=sys.stderr);
             return False;
       else:
         for setting_name in _valid_settings:
@@ -89,7 +110,7 @@ def ParseCommandLine():
               _arguments[argument_name] = arg;
               break;
           else:
-            print >>sys.stderr, "Unknown _arguments: %s." % repr(arg);
+            print("Unknown _arguments: %s." % repr(arg), file=sys.stderr);
             return False;
   return True;
 
@@ -150,6 +171,7 @@ def Main():
       PrintLogo();
     encoding = True;
   else:
+    import test
     if _flags["verbose"]:
       PrintLogo();
       PrintWrappedLine();
@@ -172,7 +194,7 @@ def Main():
     if _switches["input"] is not None:
       shellcode = io.ReadFile(_switches["input"]);
     else:
-      shellcode = sys.stdin.read();
+      shellcode = sys.stdin.buffer.read().decode("latin-1");
   # Scan all encoders to see which match the given _settings/_arguments and take action:
   results = [];
   errors = False;
@@ -194,8 +216,11 @@ def Main():
           problems = test.TestEncoder(encoder_settings, _arguments["base address"], _flags["int3"] > 0);
           if problems is not None: # None => No test was found for the given base address
             at_least_one_encoder_found = True;
-            results.extend(problems);
-            errors = True;
+            for problem in problems:
+              if problem not in results:
+                results.append(problem);
+            if problems:
+              errors = True;
         elif _flags["help"]:
           encoder_settings_string = "%s %s %s" % (encoder_settings["architecture"], 
               encoder_settings["character encoding"], encoder_settings["case"]);
@@ -209,20 +234,19 @@ def Main():
             encoder_function_args = encoder_settings["function args"];
           else:
             encoder_function_args = {};
+          encoded_shellcode = encoder_function(_arguments["base address"], shellcode, *encoder_function_args);
+          results += CheckEncodedShellcode(encoded_shellcode, encoder_settings);
           if _switches["output"] is not None:
-            io.WriteFile(_settings["output file"], result);
+            io.WriteFile(_switches["output"], encoded_shellcode);
           else:
-            encoded_shellcode = encoder_function(_arguments["base address"], shellcode, *encoder_function_args);
-            results += test.CheckEncodedShellcode(encoded_shellcode, encoder_settings);
-            sys.stdout.write(encoded_shellcode);
+            sys.stdout.buffer.write(encoded_shellcode.encode("latin-1"));
   if _flags["help"]:
     if not help_results:
       PrintWrappedLine("No encoder found that can encode using the given settings and arguments.");
       errors = True;
     else:
       PrintWrappedLine("Valid base address examples for each encoder, ordered by encoder settings, are:");
-      help_results_encoder_settings = help_results.keys();
-      help_results_encoder_settings.sort();
+      help_results_encoder_settings = sorted(help_results.keys());
       for encoder_settings_string in help_results_encoder_settings:
         PrintWrappedLine("");
         PrintWrappedLine("[%s]" % encoder_settings_string);
@@ -252,4 +276,4 @@ if __name__ == "__main__":
     print_functions.g_output_verbosity_level = _flags["verbose"];
     success = Main();
   exit_code = {True:0, False:1}[success];
-  exit(exit_code);
+  sys.exit(exit_code);

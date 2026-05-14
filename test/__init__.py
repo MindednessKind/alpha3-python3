@@ -2,8 +2,9 @@ import ALPHA3
 import os, re, subprocess, sys
 
 LOCAL_PATH = __path__[0]
+TESTING_SUPPORTED = sys.platform == 'win32'
 
-if (sys.platform == 'win32'):
+if TESTING_SUPPORTED:
   TEST_X86 = ALPHA3.io.LongPath(os.path.join(LOCAL_PATH, "w32-testival.exe"))
   if not os.path.isfile(TEST_X86):
     raise IOError("Test application not found: \"%s\"." % TEST_X86)
@@ -22,9 +23,17 @@ if (sys.platform == 'win32'):
   
   TEST_SHELLCODE_OUTPUT = "Hello, world!\r\n"
 else:
-  raise OSError("Unsupported platform for testing.");
+  TEST_X86 = None
+  TEST_X86_SHELLCODE_FILE = None
+  TEST_X86_SHELLCODE = None
+  TEST_X64 = None
+  TEST_X64_SHELLCODE_FILE = None
+  TEST_X64_SHELLCODE = None
+  TEST_SHELLCODE_OUTPUT = None
 
 def TestEncoder(encoder_settings, base_address, int3):
+  if not TESTING_SUPPORTED:
+    return ["Encoder tests require Windows/Testival and cannot run on this platform."]
   assert "tests" in encoder_settings and encoder_settings["tests"], (
       "No tests found in [%s] encoder." % (encoder_settings["name"]))
   problems = []
@@ -77,7 +86,8 @@ def RunEncoderTest(encoder_settings, base_address, test_args, int3):
     test_command = TEST_X64
   else:
     ALPHA3.PrintVerboseStatusLine("Problem", "Encoder uses untestable architecture.")
-    return ["[%s] Has an untestable architecture \"%s\"" % (encoder_settings["name"], architecture)]
+    return ["[%s] Has an untestable architecture \"%s\"" % (
+        encoder_settings["name"], encoder_settings["architecture"])]
   # Encode shellcode
   if "function args" in encoder_settings:
     encoder_function_args = encoder_settings["function args"];
@@ -103,12 +113,14 @@ def RunEncoderTest(encoder_settings, base_address, test_args, int3):
   # Print test command line:
   try:
     popen = subprocess.Popen(command, stdin = subprocess.PIPE, stdout = subprocess.PIPE, stderr = subprocess.PIPE)
-  except WindowsError, e:
-    if e.winerror == 193: # not a valid Win32 application
+  except OSError as e:
+    if getattr(e, "winerror", None) == 193: # not a valid Win32 application
       ALPHA3.PrintVerboseStatusLine("Problem", "Encoder cannot be tested on your platform (ignored).")
       return None
     raise
-  stdout_data, stderr_data = popen.communicate(encoded_shellcode)
+  stdout_data, stderr_data = popen.communicate(encoded_shellcode.encode("latin-1"))
+  stdout_data = stdout_data.decode("latin-1")
+  stderr_data = stderr_data.decode("latin-1")
   if (stdout_data == TEST_SHELLCODE_OUTPUT and stderr_data == ""):
     ALPHA3.PrintVerboseStatusLine("Result", "Success")
     return None

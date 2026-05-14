@@ -1,4 +1,4 @@
-import xpsp3
+from . import xpsp3
 
 encoders = []
 encoders.extend(xpsp3.encoders)

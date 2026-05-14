@@ -1,4 +1,4 @@
-import getpc
+from . import getpc
 
 encoders = getpc.encoders
 for encoder in encoders:
