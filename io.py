@@ -42,8 +42,7 @@ def ReadFile(file_name, path=None):
   if path == None:
     path = os.getcwd()
   file_path = os.path.join(path, file_name)
-  if not os.path.isfile(file_path):
-    _EnsureBinaryFromAssembly(file_path)
+  _EnsureBinaryFromAssembly(file_path)
   fd = open(file_path, "rb")
   try:
     return fd.read().decode("latin-1")

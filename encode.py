@@ -5,6 +5,7 @@ import math
 def encodeData(decoder, data, encoding_function, valid_values, pre_xor=True, terminating_char=""):
   assert decoder, "Decoder is missing or empty"
   assert data.find("\0") == -1, "Shellcode must be NULL free"
+  valid_values = valid_values[:]
   # Older encoders use a terminating char:
   if terminating_char != "":
     terminating_value = ord(terminating_char)
@@ -168,7 +169,7 @@ def injectCodes(data, codes):
     start_code = data.find("@")
     assert start_code != -1, "More codes than places to store them!"
     end_code = start_code + 1
-    while data[end_code] == "@":
+    while end_code < len(data) and data[end_code] == "@":
       end_code += 1
     encoded_code = toString(code, end_code - start_code)
     data = data[:start_code] + encoded_code + data[end_code:]

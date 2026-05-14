@@ -158,6 +158,7 @@ def PrintHelp():
   ]);
 
 def Main():
+  defaulted_settings = set()
   # Print header
   if _flags["help"]:
     # Print the main help body before displaying encoder specific help:
@@ -177,69 +178,78 @@ def Main():
       PrintWrappedLine();
     # We're testing our encoders
     encoding = False;
+  if encoding:
+    for name in _settings:
+      if _settings[name] is None:
+        _settings[name] = _default_settings[name]
+        defaulted_settings.add(name)
   # Print the _settings provided by the user and if we're encoding shellcode, set and print the default _settings
   # for anything not provided:
   if _flags["verbose"]:
     for name in _settings:
-      if _settings[name] is not None:
-        PrintInfo([(name, _settings[name])]);
-      elif encoding:
-        _settings[name] = _default_settings[name];
+      if name in defaulted_settings:
         PrintInfo([(name, _settings[name] + " (default)")]);
+      elif _settings[name] is not None:
+        PrintInfo([(name, _settings[name])]);
     for name in _arguments:
       if _arguments[name] is not None:
         PrintInfo([(name, _arguments[name])]);
-  # If the user wants to encode shellcode, it needs to be read from stdin or a file:
-  if encoding:
-    if _switches["input"] is not None:
-      shellcode = io.ReadFile(_switches["input"]);
-    else:
-      shellcode = sys.stdin.buffer.read().decode("latin-1");
   # Scan all encoders to see which match the given _settings/_arguments and take action:
   results = [];
   errors = False;
   help_results = {};
   at_least_one_encoder_found = False;
-  for encoder_settings in encoders:
-    for name in _settings:
-      if not name in encoder_settings:
-        raise AssertionError("One of the encoders is missing the '%s' setting: %s" % (name, encoder_settings["name"]));
-      if _settings[name] != None and _settings[name] != encoder_settings[name]:
-        # This _settings is specified but does not match this encoders _settings: skip the encoder.
-        break;
-    else: # All _settings match
-      # Check "base address" argument:
-      if (_arguments["base address"] is None or 
-          re.match(encoder_settings["base address"], _arguments["base address"], re.IGNORECASE)):
-        at_least_one_encoder_found = True;
-        if _flags["test"]:
-          problems = test.TestEncoder(encoder_settings, _arguments["base address"], _flags["int3"] > 0);
-          if problems is not None: # None => No test was found for the given base address
-            at_least_one_encoder_found = True;
-            for problem in problems:
-              if problem not in results:
-                results.append(problem);
-            if problems:
-              errors = True;
-        elif _flags["help"]:
-          encoder_settings_string = "%s %s %s" % (encoder_settings["architecture"], 
-              encoder_settings["character encoding"], encoder_settings["case"]);
-          if encoder_settings_string not in help_results:
-            help_results[encoder_settings_string] = [];
-          help_results[encoder_settings_string].append((
-              encoder_settings["name"], " ".join(encoder_settings["base address samples"])));
-        else:
-          encoder_function = encoder_settings["function"];
-          if "function args" in encoder_settings:
-            encoder_function_args = encoder_settings["function args"];
+  missing_base_address = encoding and _arguments["base address"] is None
+  if missing_base_address:
+    results.append("No base address specified.");
+    errors = True;
+  else:
+    # If the user wants to encode shellcode, it needs to be read from stdin or a file:
+    if encoding:
+      if _switches["input"] is not None:
+        shellcode = io.ReadFile(_switches["input"]);
+      else:
+        shellcode = sys.stdin.buffer.read().decode("latin-1");
+    for encoder_settings in encoders:
+      for name in _settings:
+        if not name in encoder_settings:
+          raise AssertionError("One of the encoders is missing the '%s' setting: %s" % (name, encoder_settings["name"]));
+        if _settings[name] != None and _settings[name] != encoder_settings[name]:
+          # This _settings is specified but does not match this encoders _settings: skip the encoder.
+          break;
+      else: # All _settings match
+        # Check "base address" argument:
+        if (_arguments["base address"] is None or 
+            re.match(encoder_settings["base address"], _arguments["base address"], re.IGNORECASE)):
+          at_least_one_encoder_found = True;
+          if _flags["test"]:
+            problems = test.TestEncoder(encoder_settings, _arguments["base address"], _flags["int3"] > 0);
+            if problems is not None: # None => No test was found for the given base address
+              at_least_one_encoder_found = True;
+              for problem in problems:
+                if problem not in results:
+                  results.append(problem);
+              if problems:
+                errors = True;
+          elif _flags["help"]:
+            encoder_settings_string = "%s %s %s" % (encoder_settings["architecture"], 
+                encoder_settings["character encoding"], encoder_settings["case"]);
+            if encoder_settings_string not in help_results:
+              help_results[encoder_settings_string] = [];
+            help_results[encoder_settings_string].append((
+                encoder_settings["name"], " ".join(encoder_settings["base address samples"])));
           else:
-            encoder_function_args = {};
-          encoded_shellcode = encoder_function(_arguments["base address"], shellcode, *encoder_function_args);
-          results += CheckEncodedShellcode(encoded_shellcode, encoder_settings);
-          if _switches["output"] is not None:
-            io.WriteFile(_switches["output"], encoded_shellcode);
-          else:
-            sys.stdout.buffer.write(encoded_shellcode.encode("latin-1"));
+            encoder_function = encoder_settings["function"];
+            if "function args" in encoder_settings:
+              encoder_function_args = encoder_settings["function args"];
+            else:
+              encoder_function_args = {};
+            encoded_shellcode = encoder_function(_arguments["base address"], shellcode, *encoder_function_args);
+            results += CheckEncodedShellcode(encoded_shellcode, encoder_settings);
+            if _switches["output"] is not None:
+              io.WriteFile(_switches["output"], encoded_shellcode);
+            else:
+              sys.stdout.buffer.write(encoded_shellcode.encode("latin-1"));
   if _flags["help"]:
     if not help_results:
       PrintWrappedLine("No encoder found that can encode using the given settings and arguments.");
@@ -253,7 +263,7 @@ def Main():
         for encoder_name, valid_base_address_samples in help_results[encoder_settings_string]:
           PrintInfo([('  ' + encoder_name, valid_base_address_samples)]);
   else:
-    if not at_least_one_encoder_found:
+    if not at_least_one_encoder_found and not missing_base_address:
       results.append("No encoder exists for the given settings.");
       errors = True;
     if results:
@@ -264,7 +274,7 @@ def Main():
   return not errors;
 
 def toInt(s):
-  if s[:2] == "0x":
+  if s[:2].lower() == "0x":
     return int(s[2:], 16);
   return int(s);
 

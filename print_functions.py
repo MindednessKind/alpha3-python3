@@ -22,6 +22,7 @@ def PrintStatus(header=None, message=""):
   global g_output_header_size, g_output_screen_width;
   if header is None:
     Print("".ljust(g_output_screen_width) + "\r");
+    return
   status = ("%%%ds : %%s" % g_output_header_size) % (header, message)
   if len(status) >= g_output_screen_width:
     Print(status[:g_output_screen_width - 3] + "...\r");

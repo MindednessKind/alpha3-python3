@@ -20,8 +20,8 @@ def XX_IMUL_30_XOR_YY_XOR_XX(result, valid_values): # Find a way to encode a byt
   raise AssertionError("Cannot encode %02X" % (result,))
 
 def PrintValues(i):
-  XX, YY = XX_IMUL_30_XOR_YY_XOR_XX(i, ALPHA3.ascii.mixedcase.VALUES)
-  print "%02X %02X: %02X * 30 ^ %02X ^ %02X == %02X" % (XX, YY, XX, YY, XX, i)
+  XX, YY = XX_IMUL_30_XOR_YY_XOR_XX(i, ALPHA3.charsets.valid_charcodes["ascii"]["mixedcase"])
+  print("%02X %02X: %02X * 30 ^ %02X ^ %02X == %02X" % (XX, YY, XX, YY, XX, i))
 
 if __name__ == "__main__":
   if len(sys.argv) == 2:
