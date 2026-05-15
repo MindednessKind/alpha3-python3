@@ -1,35 +1,38 @@
 # alpha3-python3
 
-ALPHA3 是一个字母数字 shellcode 编码器，可以把原始 x86/x64 shellcode 编码为只包含允许字符集的 shellcode，并在运行时通过前置 decoder 还原和执行原始代码。
+SkyLined 的 ALPHA3，搬到 Python 3 上来了。
 
-本仓库基于 SkyLined 的 ALPHA3 做了 Python 3 迁移和可用性修复，目标是保留原有命令行使用方式，同时让项目在现代 Python 3 环境中可以直接运行。
+ALPHA3 干的事很简单：把你的 x86/x64 shellcode 编码成只含特定字符集的字节（比如 `ascii mixedcase`），前面拼一段 decoder stub，运行时先自解码再跳到真正的 payload。
+
+我做的事就两件：Python 2 → 3 的迁移，以及把 decoder 的 `.bin` 直接放进仓库。clone 下来就能跑，不用折腾 SkyBuild。
 
 ## 当前状态
 
-- 支持 Python 3 运行，已在 Python 3.12 上验证。
-- 修复 Python 2 语法、隐式相对导入、二进制 stdin/stdout、文件输出等问题。
-- 补齐 decoder `.bin` 文件，不再要求用户先运行 SkyBuild 才能编码。
-- 保留 `.asm` 源文件，`io.ReadFile()` 在 `.bin` 缺失时仍可尝试用 NASM 从同名 `.asm` 自动生成。
-- `--test` 已迁移到 Python 3；在非 Windows 环境会明确提示 Testival 测试需要 Windows。
-- 新增 x64 执行级验证：编码后的 `execve("/bin//sh")` shellcode 会在本地 Linux x86_64 进程中真正拉起 `/bin/sh` 并执行 marker 命令。
+Python 3.12 下日常使用没问题。迁移过程中处理了老语法、隐式相对导入、二进制 stdin/stdout 这些 2→3 的经典坑。
 
-## 环境要求
+decoder `.bin` 已经全部到位，正常用不需要装 NASM。只有 `.bin` 丢了或者你想自己重新编译 decoder 时才会去找 NASM。
+
+内置的 `--test` 还在，但它依赖 Windows + Testival。非 Windows 下跑会告诉你平台不对，不会直接炸。
+
+x64 额外加了两层验证：Unicorn 仿真跑一遍，再在真实 Linux x86_64 进程里执行编码后的 `execve("/bin//sh")` 确认能拿到 shell。
+
+## 依赖
 
 - Python 3.8+
-- NASM，可选但建议安装。仓库已包含生成好的 `.bin`，正常编码不需要重新生成；当 `.bin` 缺失或需要重建时才需要 NASM。
-- Unicorn，仅在运行 `test/validate_x64_shellcode.py` 仿真验证时需要。
-- gcc + Linux x86_64，仅在运行 `test/validate_x64_execve_shell.py` 进程级 get-shell 验证时需要。
-- Windows + Testival，仅在运行 `--test` 时需要。
+- NASM — 可选，`.bin` 都带了
+- Unicorn — 跑 `test/validate_x64_shellcode.py` 时要
+- gcc + Linux x86_64 — 跑 `test/validate_x64_execve_shell.py` 时要
+- Windows + Testival — 跑内置 `--test` 时要
 
-## 基本用法
+## 用法
 
-查看帮助：
+看帮助，列出所有 encoder 和 base address 写法：
 
 ```bash
 python3 ALPHA3.py --help
 ```
 
-编码 x86 ascii mixedcase shellcode，假设 EAX 指向编码后 shellcode 起始地址：
+x86 编码，假设 EAX 指向编码后 shellcode 起始：
 
 ```bash
 python3 ALPHA3.py x86 ascii mixedcase eax \
@@ -37,7 +40,7 @@ python3 ALPHA3.py x86 ascii mixedcase eax \
   --output=/tmp/alpha3-x86.bin
 ```
 
-编码 x64 ascii mixedcase shellcode，假设 RAX 指向编码后 shellcode 起始地址：
+x64 同理，换架构换寄存器，RAX 指向起始：
 
 ```bash
 python3 ALPHA3.py x64 ascii mixedcase rax \
@@ -45,70 +48,69 @@ python3 ALPHA3.py x64 ascii mixedcase rax \
   --output=/tmp/alpha3-x64.bin
 ```
 
-也可以通过 stdin/stdout 使用：
+管道也行：
 
 ```bash
 python3 ALPHA3.py x86 ascii mixedcase eax < raw.bin > encoded.bin
 ```
 
-注意：ALPHA3 原算法要求输入 shellcode 不包含 NULL 字节。
+注意：输入 shellcode 不能有 NULL 字节，这是原算法的限制。
 
 ## 支持的编码器
 
-当前 `python3 ALPHA3.py --help` 会列出完整 base address 示例。主要类别如下：
+跑 `--help` 看完整列表。常用的：
 
-- `x64 ascii mixedcase`: `RAX RCX RDX RBX RSP RBP RSI RDI`
-- `x86 ascii lowercase`: `ECX EDX EBX`
-- `x86 ascii mixedcase`: 通用寄存器、内存寄存器、`i32`、countslide、SEH GetPC
-- `x86 ascii uppercase`: 通用寄存器和内存寄存器
-- `x86 latin-1 mixedcase`: CALL GetPC
-- `x86 utf-16 uppercase`: Unicode uppercase decoder
+- `x64 ascii mixedcase` — RAX RCX RDX RBX RSP RBP RSI RDI
+- `x86 ascii lowercase` — ECX EDX EBX
+- `x86 ascii mixedcase` — 通用寄存器、内存寄存器、i32、countslide、SEH GetPC
+- `x86 ascii uppercase` — 通用寄存器、内存寄存器
+- `x86 latin-1 mixedcase` — CALL GetPC
+- `x86 utf-16 uppercase` — Unicode uppercase decoder
 
-## 目录说明
+## 目录结构
 
-- `ALPHA3.py`: 命令行入口和 encoder 调度。
-- `encode.py`: 通用编码算法。
-- `charsets.py`: 字符集和合法字符表。
-- `io.py`: 文件读写、长路径处理、`.asm` 到 `.bin` 的兜底生成。
-- `print_functions.py`: 控制台输出和进度显示。
-- `x86/`: x86 decoder 和 encoder 注册。
-- `x64/`: x64 decoder 和 encoder 注册。
-- `test/`: Testival 测试程序和测试 shellcode。
-- `TREE.md`: 当前项目文件树。
-- `NAVIGATION.md`: 实现完成情况和关键功能位置。
+- `ALPHA3.py` — 入口，encoder 调度
+- `encode.py` — 编码算法
+- `charsets.py` — 字符集定义
+- `io.py` — 文件读写，`.asm` → `.bin` 兜底
+- `print_functions.py` — 控制台输出
+- `x86/` — x86 decoder + encoder
+- `x64/` — x64 decoder + encoder
+- `test/` — 测试 shellcode 和验证脚本
 
-## 验证命令
+## 验证
 
-语法检查：
+快速检查语法没坏：
 
 ```bash
 python3 -m py_compile ALPHA3.py encode.py io.py charsets.py print_functions.py test/__init__.py
 ```
 
-功能 smoke test：
+跑一遍基础编码确认能出东西：
 
 ```bash
-python3 ALPHA3.py --help
 python3 ALPHA3.py x86 ascii mixedcase eax --input=test/w32-writeconsole-shellcode.bin --output=/tmp/alpha3-x86.bin
 python3 ALPHA3.py x64 ascii mixedcase rax --input=test/w64-writeconsole-shellcode.bin --output=/tmp/alpha3-x64.bin
 ```
 
-执行级验证：
+依赖齐全的话可以继续跑 x64 验证：
 
 ```bash
 python3 test/validate_x64_shellcode.py
 python3 test/validate_x64_execve_shell.py
 ```
 
-非 Windows 环境下运行 `--test` 会返回可控提示：
+非 Windows 下跑 `--test` 会看到：
 
 ```text
 Encoder tests require Windows/Testival and cannot run on this platform.
 ```
 
+这是正常的。
+
 ## 授权
 
-本仓库采用 MIT + 原始 BSD-3-Clause 保留通知的方式分发：
+两部分：
 
-- MindednessKind <mindednesskind@gmail.com> 对 Python 3 迁移、维护改动和新增文档按 MIT License 授权，见 `LICENSE`。
-- 原始 ALPHA3 代码、decoder 资产和历史资料保留 Berend-Jan "SkyLined" Wever 的版权与原 BSD-3-Clause-style 条款；相关通知保存在 `COPYRIGHT.txt`，并收录在 `LICENSE` 中。
+- Python 3 迁移和新增内容 — MIT License，MindednessKind <mindednesskind@gmail.com>，见 `LICENSE`
+- 原始 ALPHA3 代码和 decoder 资产 — Berend-Jan "SkyLined" Wever 的版权，BSD-3-Clause-style，详见 `COPYRIGHT.txt` 和 `LICENSE`
