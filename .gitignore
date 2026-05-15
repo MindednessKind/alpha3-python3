@@ -42,3 +42,9 @@ dist/
 
 # Local review backups
 backup/
+
+# Local agent/review navigation files
+AGENTS.md
+TREE.md
+NAVIGATION.md
+REVIEW.md
