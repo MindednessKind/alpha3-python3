@@ -24,6 +24,9 @@
   - `AGENTS-cn.md` 保留中文 agent 工作约定。
 - 已新增 x64 shellcode 仿真验证脚本。
   - `test/validate_x64_shellcode.py` 使用 Unicorn 验证 `x64 ascii mixedcase rax` 编码结果可解码并执行。
+- 已新增 x64 get-shell 进程级验证脚本。
+  - `test/validate_x64_execve_shell.py` 生成 NULL-free Linux x86_64 `execve("/bin//sh")` payload，使用 `x64 ascii mixedcase rax` 编码，再通过临时 C harness 设置 `RAX` 为 decoder 基址并执行编码结果。
+  - 验证方式是向被拉起的 `/bin/sh` 发送 marker 命令，确认 shell stdout 返回 `ALPHA3_EXECVE_SHELL_OK\n`。
 
 ## 关键入口地址
 
@@ -82,6 +85,15 @@ x64:
   - base address：`RAX RCX RDX RBX RSP RBP RSI RDI`
   - decoder 资源：同目录 `RAX.bin`、`RCX.bin` 等。
 
+### 执行级验证
+
+- `test/validate_x64_shellcode.py`
+  - 对 `x64 ascii mixedcase rax` 编码结果做 Unicorn 仿真，确认 decoder 还原原始 ORW payload，并拦截 Linux syscall 验证 stdout。
+- `test/validate_x64_execve_shell.py`
+  - 对 `x64 ascii mixedcase rax` 编码结果做真实进程级验证。
+  - payload 为 NULL-free `execve("/bin//sh")` shellcode。
+  - 临时 harness 使用 RWX `mmap` 装载编码后 shellcode，设置 `RAX=region` 后调用 decoder；shell 成功执行 marker 命令即视为 get-shell 可行。
+
 x86 ascii mixedcase:
 
 - `x86/ascii/mixedcase/rm32/__init__.py`
@@ -135,6 +147,7 @@ python3 ALPHA3.py --help
 python3 ALPHA3.py x86 ascii mixedcase eax --input=test/w32-writeconsole-shellcode.bin --output=/tmp/alpha3-x86.bin
 python3 ALPHA3.py x64 ascii mixedcase rax --input=test/w64-writeconsole-shellcode.bin --output=/tmp/alpha3-x64.bin
 python3 test/validate_x64_shellcode.py
+python3 test/validate_x64_execve_shell.py
 ```
 
 非 Windows 环境下：
@@ -152,6 +165,7 @@ Encoder tests require Windows/Testival and cannot run on this platform.
 ## 已知约束
 
 - 输入 shellcode 必须 NULL-free。
+- `test/validate_x64_execve_shell.py` 需要 Linux x86_64、`gcc`，并要求运行环境允许临时进程使用 RWX `mmap` 执行 shellcode。
 - `--test` 依赖 Windows Testival `.exe`，Linux 下只能验证 CLI 和编码输出。
 - 如果删除 `.bin` 后需要自动重建，系统必须安装 NASM。
 - `older_versions.zip` 为原项目历史资料，当前运行路径不依赖它。

@@ -11,11 +11,14 @@ ALPHA3 是一个字母数字 shellcode 编码器，可以把原始 x86/x64 shell
 - 补齐 decoder `.bin` 文件，不再要求用户先运行 SkyBuild 才能编码。
 - 保留 `.asm` 源文件，`io.ReadFile()` 在 `.bin` 缺失时仍可尝试用 NASM 从同名 `.asm` 自动生成。
 - `--test` 已迁移到 Python 3；在非 Windows 环境会明确提示 Testival 测试需要 Windows。
+- 新增 x64 执行级验证：编码后的 `execve("/bin//sh")` shellcode 会在本地 Linux x86_64 进程中真正拉起 `/bin/sh` 并执行 marker 命令。
 
 ## 环境要求
 
 - Python 3.8+
 - NASM，可选但建议安装。仓库已包含生成好的 `.bin`，正常编码不需要重新生成；当 `.bin` 缺失或需要重建时才需要 NASM。
+- Unicorn，仅在运行 `test/validate_x64_shellcode.py` 仿真验证时需要。
+- gcc + Linux x86_64，仅在运行 `test/validate_x64_execve_shell.py` 进程级 get-shell 验证时需要。
 - Windows + Testival，仅在运行 `--test` 时需要。
 
 ## 基本用法
@@ -88,6 +91,13 @@ python3 -m py_compile ALPHA3.py encode.py io.py charsets.py print_functions.py t
 python3 ALPHA3.py --help
 python3 ALPHA3.py x86 ascii mixedcase eax --input=test/w32-writeconsole-shellcode.bin --output=/tmp/alpha3-x86.bin
 python3 ALPHA3.py x64 ascii mixedcase rax --input=test/w64-writeconsole-shellcode.bin --output=/tmp/alpha3-x64.bin
+```
+
+执行级验证：
+
+```bash
+python3 test/validate_x64_shellcode.py
+python3 test/validate_x64_execve_shell.py
 ```
 
 非 Windows 环境下运行 `--test` 会返回可控提示：
