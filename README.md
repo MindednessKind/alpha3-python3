@@ -108,4 +108,7 @@ Encoder tests require Windows/Testival and cannot run on this platform.
 
 ## 授权
 
-原项目版权和授权说明见 `COPYRIGHT.txt`。
+本仓库采用 MIT + 原始 BSD-3-Clause 保留通知的方式分发：
+
+- MindednessKind <mindednesskind@gmail.com> 对 Python 3 迁移、维护改动和新增文档按 MIT License 授权，见 `LICENSE`。
+- 原始 ALPHA3 代码、decoder 资产和历史资料保留 Berend-Jan "SkyLined" Wever 的版权与原 BSD-3-Clause-style 条款；相关通知保存在 `COPYRIGHT.txt`，并收录在 `LICENSE` 中。

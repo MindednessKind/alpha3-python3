@@ -1,3 +1,20 @@
+Copyright and license notices
+=============================
+
+This repository uses the MIT License for the Python 3 port, maintenance
+changes, documentation, and other contributions owned by:
+
+Copyright (c) 2026 MindednessKind <mindednesskind@gmail.com>
+
+Original ALPHA3 source code, decoder assets, and historical materials remain
+covered by the original notice below. It is retained to preserve the rights,
+conditions, and disclaimer required by the original license.
+
+See LICENSE for the full MIT license text and the preserved original notice.
+
+Original ALPHA3 notice
+----------------------
+
 Copyright (c) 2003-2010 Berend-Jan "SkyLined" Wever <berendjanwever@gmail.com>
 All rights reserved.
 
